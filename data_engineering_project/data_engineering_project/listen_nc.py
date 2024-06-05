@@ -1,6 +1,7 @@
 import json
 import logging
 import ssl
+import time
 
 import paho.mqtt.client as mqtt_client
 import paho.mqtt.properties as properties
@@ -9,22 +10,33 @@ import httpx
 
 from pathlib import Path
 
-BROKER_DOMAIN = "mqtt.dataplatform.knmi.nl"
-# Client ID should be made static, it is used to identify your session, so that
-# missed events can be replayed after a disconnect
-# https://www.uuidgenerator.net/version4
-CLIENT_ID = "8992608f-42ad-4953-b449-16c2592acd52"
-# Obtain your token at: https://developer.dataplatform.knmi.nl/notification-service
-TOKEN = "eyJvcmciOiI1ZTU1NGUxOTI3NGE5NjAwMDEyYTNlYjEiLCJpZCI6IjBjYjcwYTcwZWE4ZDRhYzZhMGMzMWVlNDE0ODA2ODM2IiwiaCI6Im11cm11cjEyOCJ9"
-# This will listen to both file creation and update events of this dataset:
-# https://dataplatform.knmi.nl/dataset/radar-echotopheight-5min-1-0
-# This topic should have one event every 5 minutes
-# TOPIC = "dataplatform/file/v1/radar_echotopheight_5min/1.0/#"
-TOPIC = "dataplatform/file/v1/Actuele10mindataKNMIstations/2/updated"
+from data_engineering_project.wrangle import process_nc_file, insert_nc_filerows
+
+import toml
+
+with open("auth.toml") as authfile:
+    auth_config = toml.load(authfile)
+
+match auth_config:
+    case {"CLIENT_ID": str(CLIENT_ID), "TOKEN": str(TOKEN), "FILE_DOWNLOAD_TOKEN": str(FILE_DOWNLOAD_TOKEN),}:
+        pass
+    case _:
+        print("Can not everything from the auth.toml. Check that it has at least CLIENT_ID, TOKEN, TOPIC, FILE_DOWNLOAD_TOKEN and BROKER_DOMAIN")
+        exit()
+
+with open("config.toml") as configfile:
+    config = toml.load(configfile)
+
+match config:
+    case {"TOPIC": str(TOPIC), "BROKER_DOMAIN": str(BROKER_DOMAIN)}:
+        pass
+    case _:
+        print("Can not everything from the config.toml. Check that it at least has TOPIC and BROKER_DOMAIN")
+        exit()
+
 # Version 3.1.1 also supported
 PROTOCOL = mqtt_client.MQTTv5
 
-FILE_DOWNLOAD_TOKEN = "eyJvcmciOiI1ZTU1NGUxOTI3NGE5NjAwMDEyYTNlYjEiLCJpZCI6ImE1OGI5NGZmMDY5NDRhZDNhZjFkMDBmNDBmNTQyNjBkIiwiaCI6Im11cm11cjEyOCJ9"
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
@@ -80,7 +92,13 @@ def subscribe(client: mqtt_client, topic: str):
                 for chunk in response.iter_bytes(2 ** 20 * 2):
                     print(f"Writing chunk of {len(chunk)} bytes to file")
                     f.write(chunk)
-            print("Downloaded", filename)
+            print("Downloaded", file_path)
+            start = time.time()
+            result = process_nc_file(file_path)
+            end_process = time.time()
+            insert_nc_filerows(result)
+            end_insert = time.time()
+            print("Saved rows from", filename, f"into the database. Processing took {round(end_process-start,2)} seconds and saving took {round(end_insert-start,2)} seconds")
 
         except Exception as e:
             print("Could not download data :(", e)
