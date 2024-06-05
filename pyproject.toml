@@ -22,3 +22,6 @@ toml = "^0.10.2"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+listen-nc = "data_engineering_project.listen_nc:run"

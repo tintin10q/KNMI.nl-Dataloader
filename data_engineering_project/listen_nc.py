@@ -10,19 +10,16 @@ import httpx
 
 from pathlib import Path
 
+from data_engineering_project.config import load_auth
 from data_engineering_project.wrangle import process_nc_file, insert_nc_filerows
-
 import toml
 
-with open("auth.toml") as authfile:
-    auth_config = toml.load(authfile)
-
-match auth_config:
-    case {"CLIENT_ID": str(CLIENT_ID), "TOKEN": str(TOKEN), "FILE_DOWNLOAD_TOKEN": str(FILE_DOWNLOAD_TOKEN),}:
-        pass
-    case _:
-        print("Can not everything from the auth.toml. Check that it has at least CLIENT_ID, TOKEN, TOPIC, FILE_DOWNLOAD_TOKEN and BROKER_DOMAIN")
-        exit()
+match load_auth():
+        case {"CLIENT_ID": str(CLIENT_ID), "TOKEN": str(TOKEN), "FILE_DOWNLOAD_TOKEN": str(FILE_DOWNLOAD_TOKEN), }:
+            pass
+        case _:
+            print("Can not everything from the auth.toml. Check that it has at least CLIENT_ID, TOKEN, TOPIC, FILE_DOWNLOAD_TOKEN and BROKER_DOMAIN")
+            exit()
 
 with open("config.toml") as configfile:
     config = toml.load(configfile)
@@ -33,6 +30,10 @@ match config:
     case _:
         print("Can not everything from the config.toml. Check that it at least has TOPIC and BROKER_DOMAIN")
         exit()
+
+from data_engineering_project.init_wrangle import create_database_if_not_exists
+
+create_database_if_not_exists()
 
 # Version 3.1.1 also supported
 PROTOCOL = mqtt_client.MQTTv5

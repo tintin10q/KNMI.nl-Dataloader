@@ -1,3 +1,7 @@
+*.nc
+auth.toml
+data_engineerinig_project/auth.toml
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
