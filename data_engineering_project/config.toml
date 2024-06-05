@@ -1,0 +1,3 @@
+BROKER_DOMAIN = "mqtt.dataplatform.knmi.nl"
+TOPIC = "dataplatform/file/v1/Actuele10mindataKNMIstations/2/updated"
+
