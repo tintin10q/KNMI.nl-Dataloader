@@ -15,7 +15,7 @@ poetry run listen-nc
 
 This will create the database, config.toml and auth.toml if it does not exist yet.
 
-Make sure to fill in the following things in the config.toml:
+Make sure to fill in the following things in the auth.toml:
 
 ```toml
 

@@ -37,15 +37,15 @@ def process_nc_file(filename: str | Path) -> Measurements:
     """
 
     # In a width statement it sadly does not seem to know the type of the value
-    db = nc.Dataset(filename)
+    db = nc.Dataset(filename) # Step 2
     try:
-        time = db.variables['time'][:].item()
+        time = db.variables['time'][:].item()  # step 3
 
         to_insert = []  # List of data to insert into the database in the end.
         # For each station iterate each key in the nc file
         for index, station in enumerate(db.variables['station']):
-            to_insert.append([])
-            for key in nc_keys_to_save:
+            to_insert.append([])  # Step 4
+            for key in nc_keys_to_save: # Step 5
 
                 if key == "time":
                     to_insert[index].append(time)
@@ -84,7 +84,7 @@ import re
 
 insert_statement = re.sub(r"([A-Z0-9a-z]+-[A-Z0-9a-z]+)", r'"\1"', insert_statement)
 
-def insert_nc_filerows(result: Measurements):
+def insert_nc_filerows(result: Measurements): # Step 6
     con = get_connection()
     con.executemany(insert_statement, result)
 
