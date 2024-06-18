@@ -13,9 +13,15 @@ Run the pipline with
 poetry run listen-nc
 ```
 
+Run the api with
+
+```shell
+poetry run start-api
+```
+
 This will create the database, config.toml and auth.toml if it does not exist yet.
 
-Make sure to fill in the following things in the auth.toml:
+If you are running the pipeline make sure to fill in the following things in the auth.toml:
 
 ```toml
 
