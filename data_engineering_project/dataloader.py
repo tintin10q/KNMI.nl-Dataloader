@@ -2,12 +2,16 @@ import os
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
+
+import torch
 from pyarrow import parquet
 
 from torch.utils.data import IterableDataset
 from typing import List, Set
 
 from to_save import KNMI_STATION, NUMERIC_KNMI_VARIABLES, KNMI_NUMERIC_VARIABLE, ALL_KNMI_STATIONS, KNMI_VARIABLE
+
+import hashlib
 
 
 class RemoteKNMIdataset(IterableDataset):
@@ -44,8 +48,14 @@ class RemoteKNMIdataset(IterableDataset):
         else:
             until = until.isoformat()
 
+        if stations is None:
+            stations = ALL_KNMI_STATIONS
+
         if invalid := stations - ALL_KNMI_STATIONS:
             raise ValueError(f'Invalid station name{"s" if len(invalid) != 1 else ""}: {invalid}')
+
+        if variables is None:
+            variables = NUMERIC_KNMI_VARIABLES
 
         if invalid := variables - NUMERIC_KNMI_VARIABLES:
             raise ValueError(f'Invalid or non numeric variable name{"s" if len(invalid) != 1 else ""}: {invalid}')
@@ -56,7 +66,9 @@ class RemoteKNMIdataset(IterableDataset):
         self.variables: Set[KNMI_NUMERIC_VARIABLE] = variables or NUMERIC_KNMI_VARIABLES
         self.train = train
 
-        h = str(hash(tuple(sorted(self.stations)))) + str(hash(tuple(sorted(self.stations))))
+        h = str(sorted(stations)).encode()
+        h += str(sorted(variables)).encode()
+        h = hashlib.sha3_224(h).hexdigest()
         self.filename = f"{after}->{until}_{h}.parquet"
 
         self.download_path = Path(download_path)
@@ -91,8 +103,14 @@ class RemoteKNMIdataset(IterableDataset):
 
     def __iter__(self):
         # Follow the order set by self.variables
-        # [time, stations, data]
-        pass
+        table = parquet.read_table(self.filepath)
+        return iter(table)
+            # Iterate until you hit a different time value
+            # Put the times in the first dimension
+            # Then the stations
+            # Then the variables.
+            # Finish the dataset, iterate over it. Create [time,station,variables] tensor, do another one where you download straight from the Duckdb database (basically running the server code on the client)
+
 
 
     def __len__(self) -> int:
@@ -101,7 +119,7 @@ class RemoteKNMIdataset(IterableDataset):
 
 
 class KNMIdataset(IterableDataset):
-    def __init__(self, train: bool, after: str = "all", until: str = "all", stations: Set[KNMI_STATION] = None, variables: Set[KNMI_KEY] = None, database_path: str | Path = "knmi.duckdb"):
+    def __init__(self, train: bool, after: str = "all", until: str = "all", stations: Set[KNMI_STATION] = None, variables: Set[KNMI_VARIABLE] = None, database_path: str | Path = "knmi.duckdb"):
         super(RemoteKNMIdataset).__init__()
         self.after = after
         self.until = until
@@ -156,7 +174,9 @@ def KNMIDataframe(after: str | datetime = None, until: str | datetime = None, st
         if invalid := variables - NUMERIC_KNMI_VARIABLES:
             raise ValueError(f'Invalid or non numeric variable name{"s" if len(invalid) != 1 else ""}: {invalid}')
 
-        h = str(hash(tuple(sorted(stations)))) + str(hash(tuple(sorted(stations))))
+        print(hash(tuple(sorted(variables))))
+
+        h = str(hash(tuple(sorted(stations)))) + str(hash(tuple(sorted(variables))))
         filename = f"{after}->{until}_{h}.parquet"
 
         download_path = Path(download_path)
@@ -192,10 +212,50 @@ def KNMIDataframe(after: str | datetime = None, until: str | datetime = None, st
 
 
 if __name__ == '__main__':
-    data = RemoteKNMIdataset(train=True)
+
+    data = RemoteKNMIdataset(train=True, until="2025-12-01")
+    print(iter(data))
     print(data)
 
 # Single api endpoint
 
 
 # Single api endpoint
+from typing import Literal, Set
+
+## Update both, idk how to make a type out of the type so for now just have 2
+
+ALL_KNMI_VARIABLES = frozenset((
+    "station", "time", "wsi", "stationname", "lat", "lon", "height", "D1H", "dd", "dn", "dr", "dsd", "dx", "ff", "ffs",
+    "fsd", "fx", "fxs", "gff", "gffs", "h", "h1", "h2", "h3", "hc", "hc1", "hc2", "hc3", "n", "n1", "n2", "n3",
+    "nc", "nc1", "nc2", "nc3", "p0", "pp", "pg", "pr", "ps", "pwc", "Q1H", "Q24H", "qg", "qgn", "qgx", "qnh", "R12H",
+    "R1H", "R24H", "R6H", "rg", "rh", "rh10", "Sav1H", "Sax1H", "Sax3H", "Sax6H", "sq", "ss", "Sx1H", "Sx3H", "Sx6H",
+    "t10", "ta", "tb", "tb1", "Tb1n6", "Tb1x6", "tb2", "Tb2n6", "Tb2x6", "tb3", "tb4", "tb5", "td", "td10", "tg",
+    "tgn", "Tgn12", "Tgn14", "Tgn6", "tn", "Tn12", "Tn14", "Tn6", "tsd", "tx", "Tx12", "Tx24", "Tx6", "vv", "W10",
+    "W10-10", "ww", "ww-10", "zm"))
+
+
+KNMI_VARIABLE = Literal[
+    "station", "time", "wsi", "stationname", "lat", "lon", "height", "D1H", "dd", "dn", "dr", "dsd", "dx", "ff", "ffs",
+    "fsd", "fx", "fxs", "gff", "gffs", "h", "h1", "h2", "h3", "hc", "hc1", "hc2", "hc3", "n", "n1", "n2", "n3",
+    "nc", "nc1", "nc2", "nc3", "p0", "pp", "pg", "pr", "ps", "pwc", "Q1H", "Q24H", "qg", "qgn", "qgx", "qnh", "R12H",
+    "R1H", "R24H", "R6H", "rg", "rh", "rh10", "Sav1H", "Sax1H", "Sax3H", "Sax6H", "sq", "ss", "Sx1H", "Sx3H", "Sx6H",
+    "t10", "ta", "tb", "tb1", "Tb1n6", "Tb1x6", "tb2", "Tb2n6", "Tb2x6", "tb3", "tb4", "tb5", "td", "td10", "tg",
+    "tgn", "Tgn12", "Tgn14", "Tgn6", "tn", "Tn12", "Tn14", "Tn6", "tsd", "tx", "Tx12", "Tx24", "Tx6", "vv", "W10",
+    "W10-10", "ww", "ww-10", "zm"]
+
+KNMI_NUMERIC_VARIABLE = Literal[
+     "time", "lat", "lon", "height", "D1H", "dd", "dn", "dr", "dsd", "dx", "ff", "ffs",
+    "fsd", "fx", "fxs", "gff", "gffs", "h", "h1", "h2", "h3", "hc", "hc1", "hc2", "hc3", "n", "n1", "n2", "n3",
+    "nc", "nc1", "nc2", "nc3", "p0", "pp", "pg", "pr", "ps", "pwc", "Q1H", "Q24H", "qg", "qgn", "qgx", "qnh", "R12H",
+    "R1H", "R24H", "R6H", "rg", "rh", "rh10", "Sav1H", "Sax1H", "Sax3H", "Sax6H", "sq", "ss", "Sx1H", "Sx3H", "Sx6H",
+    "t10", "ta", "tb", "tb1", "Tb1n6", "Tb1x6", "tb2", "Tb2n6", "Tb2x6", "tb3", "tb4", "tb5", "td", "td10", "tg",
+    "tgn", "Tgn12", "Tgn14", "Tgn6", "tn", "Tn12", "Tn14", "Tn6", "tsd", "tx", "Tx12", "Tx24", "Tx6", "vv", "W10",
+    "W10-10", "ww", "ww-10", "zm"]
+
+NON_NUMERIC_KNMI_VARIABLES = frozenset(("station", "wsi", "stationname"))
+NUMERIC_KNMI_VARIABLES : Set[KNMI_NUMERIC_VARIABLE] = ALL_KNMI_VARIABLES - NON_NUMERIC_KNMI_VARIABLES
+
+ALL_KNMI_STATIONS = frozenset(("06237", "06258", "06310", "06316", "06331", "06350", "06377", "06251", "06267", "06273", "06279", "06280", "06283", "06313", "06340", "06343", "06235", "06239", "06242", "06285", "06290", "06308", "06315", "06375", "06391", "78873", "78990", "06201", "06204", "06208", "06209", "06211", "06215", "06229", "06236", "06240", "06257", "06260", "06270", "06330", "06348", "06205", "06214", "06225", "06248", "06252", "06317", "06321", "06344", "78871", "06216", "06238", "06269", "06277", "06312", "06324", "06356", "06370", "06203", "06233", "06249", "06275", "06319", "06320", "06323", "06380", "06207", "06278", "06286"))
+KNMI_STATION = Literal["06237", "06258", "06310", "06316", "06331", "06350", "06377", "06251", "06267", "06273", "06279", "06280", "06283", "06313", "06340", "06343", "06235", "06239", "06242", "06285", "06290", "06308", "06315", "06375", "06391", "78873", "78990", "06201", "06204", "06208", "06209", "06211", "06215", "06229", "06236", "06240", "06257", "06260", "06270", "06330", "06348", "06205", "06214", "06225", "06248", "06252", "06317", "06321", "06344", "78871", "06216", "06238", "06269", "06277", "06312", "06324", "06356", "06370", "06203", "06233", "06249", "06275", "06319", "06320", "06323", "06380", "06207", "06278", "06286"]
+
