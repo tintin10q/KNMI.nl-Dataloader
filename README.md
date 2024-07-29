@@ -5,7 +5,7 @@ The goal of this project was to find a "bad" dataset and improve its quality. I 
 
 I improved the dataset by creating a pipeline that listens to the incoming messages from the knmi api and stores them into a [Duckdb](https://duckdb.org/) database.
 Then I created an api to download this data in the form of parquet files. 
-I also created a torch dataset class and dataframe loader to interact with the api for you. 
+I also created a torch dataset class and dataframe loader to interact with the api for you. Read the full reports in the pdfs [here](/reports).
 
 Install the dependencies with: 
 
@@ -38,4 +38,6 @@ TOKEN = "ey..."
 FILE_DOWNLOAD_TOKEN = "ey..."
 ```
 
-The api has useful information at its `/` page.
+The api has useful information at its `/` page. It gives you a download form for the data. It looks like this:
+
+![API root](reports/form.png)
